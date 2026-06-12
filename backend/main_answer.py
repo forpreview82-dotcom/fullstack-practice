@@ -1,23 +1,16 @@
 # main.py — FastAPI + SQLite Blog API
+from fastapi import FastAPI, Depends, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy import create_engine, Integer, String, Text, DateTime, select, or_
+from sqlalchemy.orm import DeclarativeBase, mapped_column, Mapped, sessionmaker, Session
+from pydantic import BaseModel, field_validator
 from datetime import datetime, timezone
 from typing import Optional
-
-from fastapi import Depends, FastAPI, HTTPException
-from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel, field_validator
-from sqlalchemy import DateTime, Integer, String, Text, create_engine, select
-from sqlalchemy.orm import (
-    DeclarativeBase,
-    Mapped,
-    Session,
-    mapped_column,
-    sessionmaker,
-)
 
 # ─── DB 설정 ────────────────────────────────────────────
 DATABASE_URL = "sqlite:///./blog.db"
 engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
-SessionLocal = sessionmaker(bind=engine, autoflush=False)
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 
 class Base(DeclarativeBase):
@@ -27,13 +20,10 @@ class Base(DeclarativeBase):
 # ─── 모델 (DB 테이블) ────────────────────────────────────
 class Post(Base):
     __tablename__ = "posts"
-
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
     title: Mapped[str] = mapped_column(String(200), nullable=False)
     content: Mapped[str] = mapped_column(Text, nullable=False)
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime, default=lambda: datetime.now(timezone.utc)
-    )
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc))
 
 
 Base.metadata.create_all(bind=engine)
@@ -68,6 +58,29 @@ class PostResponse(BaseModel):
 # ─── FastAPI 앱 & CORS ──────────────────────────────────
 app = FastAPI(title="Blog API")
 
+# 안전하게 허용할 출처 리스트 생성
+origins = [
+    "http://localhost:3000",  # 로컬 테스트용은 상시 허용
+    FRONTEND_URL,             # 배포된 진짜 프론트엔드 주소 허용
+]
+
+# [실습 1] Direct Fetch 방식에서 CORS 설정이 필요한 이유
+#   브라우저(http://localhost:3000)가 다른 출처의 FastAPI(http://localhost:8000)를
+#   직접 호출할 때, 브라우저의 동일 출처 정책(SOP)에 의해 요청이 차단됩니다.
+#   → allow_origins 에 Next.js 주소를 등록해 허용합니다.
+#
+# [실습 1] Route Handler 방식에서는 CORS 불필요
+#   브라우저 → Next.js Route Handler(같은 출처) → FastAPI 순서로 호출되며,
+#   FastAPI 를 호출하는 주체가 브라우저가 아닌 서버이므로 CORS 제약이 없습니다.
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,  # [실습 1] Direct Fetch 허용 출처
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+
 # ─── DB 세션 의존성 ──────────────────────────────────────
 def get_db():
     db = SessionLocal()
@@ -77,20 +90,27 @@ def get_db():
         db.close()
 
 
-def _get_post_or_none(db: Session, post_id: int) -> Post | None:
-    return db.scalar(select(Post).where(Post.id == post_id))
-
-
 # ─── GET /posts ──────────────────────────────────────────
 @app.get("/posts", response_model=list[PostResponse])
 def get_posts(db: Session = Depends(get_db)):
-    return db.scalars(select(Post)).all()
+    # [실습 3] TODO: 옵셔널 쿼리 파라미터 q 를 추가하고, 서버사이드 필터링을 구현해보세요.
+    #
+    #   1. 함수 인자에 q: Optional[str] = None 을 추가하세요.
+    #      (fastapi.Query 를 사용해 description 을 추가하면 더 좋습니다)
+    #
+    #   2. q 가 있을 때는 SQLAlchemy or_() 를 활용해 title 또는 content 에
+    #      검색어가 포함된 게시글만 반환하세요.
+    #      → or_() 는 이미 임포트되어 있습니다
+    #      → Post.title.contains(q), Post.content.contains(q)
+    #
+    #   3. q 가 없을 때는 전체 목록을 반환하세요.
+    return db.execute(select(Post)).scalars().all()
 
 
 # ─── GET /posts/{post_id} ────────────────────────────────
 @app.get("/posts/{post_id}", response_model=PostResponse)
 def get_post(post_id: int, db: Session = Depends(get_db)):
-    post = _get_post_or_none(db, post_id)
+    post = db.execute(select(Post).where(Post.id == post_id)).scalar_one_or_none()
     if not post:
         raise HTTPException(status_code=404, detail="게시글을 찾을 수 없습니다")
     return post
@@ -113,7 +133,7 @@ def create_post(data: PostCreate, db: Session = Depends(get_db)):
 # ─── PUT /posts/{post_id} ────────────────────────────────
 @app.put("/posts/{post_id}", response_model=PostResponse)
 def update_post(post_id: int, data: PostUpdate, db: Session = Depends(get_db)):
-    post = _get_post_or_none(db, post_id)
+    post = db.execute(select(Post).where(Post.id == post_id)).scalar_one_or_none()
     if not post:
         raise HTTPException(status_code=404, detail="게시글을 찾을 수 없습니다")
     try:
@@ -132,7 +152,7 @@ def update_post(post_id: int, data: PostUpdate, db: Session = Depends(get_db)):
 # ─── DELETE /posts/{post_id} ─────────────────────────────
 @app.delete("/posts/{post_id}", status_code=204)
 def delete_post(post_id: int, db: Session = Depends(get_db)):
-    post = _get_post_or_none(db, post_id)
+    post = db.execute(select(Post).where(Post.id == post_id)).scalar_one_or_none()
     if not post:
         raise HTTPException(status_code=404, detail="게시글을 찾을 수 없습니다")
     try:

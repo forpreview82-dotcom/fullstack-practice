@@ -56,6 +56,15 @@ class PostResponse(BaseModel):
 # ─── FastAPI 앱 & CORS ──────────────────────────────────
 app = FastAPI(title="Blog API")
 
+#환경 변수에서 프론트엔드 주소를 가져오고, 없으면 로컬 주소를 씁니다.
+FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:3000")
+
+# 안전하게 허용할 출처 리스트 생성
+origins = [
+    "http://localhost:3000",  # 로컬 테스트용은 상시 허용
+    FRONTEND_URL,             # 배포된 진짜 프론트엔드 주소 허용
+]
+
 # [실습 1] Direct Fetch 방식에서 CORS 설정이 필요한 이유
 #   브라우저(http://localhost:3000)가 다른 출처의 FastAPI(http://localhost:8000)를
 #   직접 호출할 때, 브라우저의 동일 출처 정책(SOP)에 의해 요청이 차단됩니다.
@@ -66,7 +75,7 @@ app = FastAPI(title="Blog API")
 #   FastAPI 를 호출하는 주체가 브라우저가 아닌 서버이므로 CORS 제약이 없습니다.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],  # [실습 1] Direct Fetch 허용 출처
+    allow_origins=origins,  # [실습 1] Direct Fetch 허용 출처
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
