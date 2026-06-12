@@ -18,54 +18,70 @@ export default function SearchPage() {
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
 
+  // BASE_PATH: 런박스 환경에서 Client Component가 Route Handler 경로를 올바르게 구성하기 위해 필요합니다.
+  // .env.local 파일에 NEXT_PUBLIC_BASE_PATH='/proxy/3000'이 포함되어 있는지 확인해주세요.
   const BASE_PATH = process.env.NEXT_PUBLIC_BASE_PATH ?? "";
 
   // ===========================================================================
-  // [실습 2 완성] axios 기반 Route Handler 방식
+  // [실습 1] Direct Fetch 방식
+  //   흐름: 브라우저 → FastAPI (NEXT_PUBLIC_FASTAPI_URL/posts) 직접 호출
+  //   TODO: 아래 useEffect 블록을 완성해보세요.완성 후 Route Handler 방식(아래)은 주석 처리하세요.
+  // ===========================================================================
+
+  // useEffect(() => {
+  //   setLoading(true);
+  //   setError(null);
+
+  //   fetch(`${process.env.NEXT_PUBLIC_FASTAPI_URL}/posts`)
+  //     .then((response) => {
+  //       if (!response.ok) throw new Error("데이터를 불러오는데 실패했습니다.");
+  //       return response.json();
+  //     })
+  //     .then((data) => {
+  //       setResults(data);
+  //     })
+  //     .catch((error) => {
+  //       setError(error.message);
+  //     })
+  //     .finally(() => {
+  //       setLoading(false);
+  //     });
+
+  //   // TODO: process.env.NEXT_PUBLIC_FASTAPI_URL 을 사용해 /posts 를 fetch 하세요.
+  //   //       성공 시 setResults, 실패 시 setError, 완료 시 setLoading(false) 처리.
+  // }, []);
+
+  // ===========================================================================
+  // [실습 1] Route Handler 방식
   //   흐름: 브라우저 → /api/search (Route Handler) → FastAPI
+  //   TODO: 아래 useEffect 블록을 완성해보세요.
   // ===========================================================================
   useEffect(() => {
-    async function fetchPosts() {
+    async function fetchData() {
       setLoading(true);
       setError(null);
 
       try {
-        const res = await axios.get<Post[]>(`${BASE_PATH}/api/search`);
-        setResults(res.data);
-      } catch (err) {
-        if (axios.isAxiosError(err)) {
-          setError(
-            err.response?.data?.detail ?? "게시글을 불러오는 데 실패했습니다",
-          );
+        const response = await axios.get(`${BASE_PATH}/api/search`);
+        setResults(response.data);
+      } catch (error) {
+        if (axios.isAxiosError(error)) {
+          setError(error.response?.data?.detail ?? "알 수 없는 오류");
         } else {
-          setError("알 수 없는 오류가 발생했습니다");
+          setError(error instanceof Error ? error.message : "알 수 없는 오류");
         }
       } finally {
         setLoading(false);
       }
     }
-
-    fetchPosts();
+    fetchData();
   }, []);
 
   // ===========================================================================
-  // [실습 1 완성] fetch 기반 Route Handler 방식 (주석 처리)
+  // TODO: results 배열을 query 로 필터링하는 로직을 구현해보세요.
+  //       post.title 또는 post.content 에 query 가 포함된 게시글만 남기세요.
   // ===========================================================================
-  // useEffect(() => {
-  //   setLoading(true);
-  //   setError(null);
-  //
-  //   fetch(`${BASE_PATH}/api/search`)
-  //     .then((res) => {
-  //       if (!res.ok) throw new Error("게시글을 불러오는 데 실패했습니다");
-  //       return res.json();
-  //     })
-  //     .then((data: Post[]) => setResults(data))
-  //     .catch((err: Error) => setError(err.message))
-  //     .finally(() => setLoading(false));
-  // }, []);
-
-  const filtered = results.filter(
+  const filtered: Post[] = results.filter(
     (post) => post.title.includes(query) || post.content.includes(query),
   );
 
