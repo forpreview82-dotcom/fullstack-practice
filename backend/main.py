@@ -1,4 +1,5 @@
 # main.py — FastAPI + SQLite Blog API
+import os
 from fastapi import FastAPI, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import create_engine, String, Text, select

@@ -1,7 +1,8 @@
 # main.py — FastAPI + SQLite Blog API
+import os
 from fastapi import FastAPI, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from sqlalchemy import create_engine, Integer, String, Text, DateTime, select, or_
+from sqlalchemy import create_engine, Integer, String, Text, DateTime, select
 from sqlalchemy.orm import DeclarativeBase, mapped_column, Mapped, sessionmaker, Session
 from pydantic import BaseModel, field_validator
 from datetime import datetime, timezone
@@ -57,6 +58,8 @@ class PostResponse(BaseModel):
 
 # ─── FastAPI 앱 & CORS ──────────────────────────────────
 app = FastAPI(title="Blog API")
+
+FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:3000")
 
 # 안전하게 허용할 출처 리스트 생성
 origins = [
