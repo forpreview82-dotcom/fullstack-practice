@@ -1,24 +1,25 @@
-import { NextResponse } from "next/server";
+// app/api/posts/[postId]/route.ts
+import { revalidateTag } from "next/cache";
+import { NextRequest, NextResponse } from "next/server";
 
-export async function GET() {
-  const fastapiUrl = process.env.FASTAPI_URL;
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: Promise<{ postId: string }> },
+) {
+  const { postId } = await params;
 
-  if (!fastapiUrl) {
-    return NextResponse.json(
-      { detail: "FASTAPI_URL 환경 변수가 설정되지 않았습니다" },
-      { status: 500 },
-    );
-  }
-
-  const res = await fetch(`${fastapiUrl}/posts`);
+  const res = await fetch(`${process.env.FASTAPI_URL}/posts/${postId}`, {
+    method: "DELETE",
+  });
 
   if (!res.ok) {
     return NextResponse.json(
-      { detail: "게시글 목록을 불러오는 데 실패했습니다" },
+      { detail: "게시글 삭제에 실패했습니다" },
       { status: res.status },
     );
   }
 
-  const data = await res.json();
-  return NextResponse.json(data);
+  revalidateTag("posts-list");
+
+  return new NextResponse(null, { status: 204 });
 }

@@ -1,4 +1,5 @@
 // app/api/posts/[postId]/route.ts
+import { revalidateTag } from "next/cache";
 import { NextRequest, NextResponse } from "next/server";
 
 export async function DELETE(
@@ -17,6 +18,8 @@ export async function DELETE(
       { status: res.status },
     );
   }
+
+  revalidateTag("posts-list");
 
   return new NextResponse(null, { status: 204 });
 }
