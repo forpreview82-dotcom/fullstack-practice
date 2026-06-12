@@ -2,8 +2,8 @@
 import os
 from fastapi import FastAPI, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from sqlalchemy import create_engine, Integer, String, Text, DateTime, select
-from sqlalchemy.orm import DeclarativeBase, mapped_column, Mapped, sessionmaker, Session
+from sqlalchemy import create_engine, String, Text, select
+from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, sessionmaker, Session
 from pydantic import BaseModel, field_validator
 from datetime import datetime, timezone
 from typing import Optional
@@ -12,8 +12,6 @@ from typing import Optional
 DATABASE_URL = "sqlite:///./blog.db"
 engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-
-
 class Base(DeclarativeBase):
     pass
 
@@ -21,10 +19,10 @@ class Base(DeclarativeBase):
 # ─── 모델 (DB 테이블) ────────────────────────────────────
 class Post(Base):
     __tablename__ = "posts"
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
-    title: Mapped[str] = mapped_column(String(200), nullable=False)
-    content: Mapped[str] = mapped_column(Text, nullable=False)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc))
+    id: Mapped[int] = mapped_column(primary_key=True, index=True)
+    title: Mapped[str] = mapped_column(String(200))
+    content: Mapped[str] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(default=lambda: datetime.now(timezone.utc))
 
 
 Base.metadata.create_all(bind=engine)
@@ -59,6 +57,7 @@ class PostResponse(BaseModel):
 # ─── FastAPI 앱 & CORS ──────────────────────────────────
 app = FastAPI(title="Blog API")
 
+#환경 변수에서 프론트엔드 주소를 가져오고, 없으면 로컬 주소를 씁니다.
 FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:3000")
 
 # 안전하게 허용할 출처 리스트 생성
@@ -96,17 +95,6 @@ def get_db():
 # ─── GET /posts ──────────────────────────────────────────
 @app.get("/posts", response_model=list[PostResponse])
 def get_posts(db: Session = Depends(get_db)):
-    # [실습 3] TODO: 옵셔널 쿼리 파라미터 q 를 추가하고, 서버사이드 필터링을 구현해보세요.
-    #
-    #   1. 함수 인자에 q: Optional[str] = None 을 추가하세요.
-    #      (fastapi.Query 를 사용해 description 을 추가하면 더 좋습니다)
-    #
-    #   2. q 가 있을 때는 SQLAlchemy or_() 를 활용해 title 또는 content 에
-    #      검색어가 포함된 게시글만 반환하세요.
-    #      → or_() 는 이미 임포트되어 있습니다
-    #      → Post.title.contains(q), Post.content.contains(q)
-    #
-    #   3. q 가 없을 때는 전체 목록을 반환하세요.
     return db.execute(select(Post)).scalars().all()
 
 
